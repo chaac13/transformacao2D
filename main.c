@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <SDL2/SDL.h>
 
 #define WIDTH 800
@@ -15,28 +16,43 @@ void desenhaAresta(SDL_Renderer *renderer, float x1, float y1, float x2, float y
     SDL_RenderDrawLine(renderer, xa, ya, xb, yb);
 }
 
-void desenhaObjeto(SDL_Renderer *renderer, int n, float escalax, float escalay, float deslx, float desly, float **pontos){
-    int i;
-    float x1, x2, y1, y2;
-    //printf("Desenhando...\n");
-    for(i = 0; i<n; i++){
-        //printf("Calculando i = %d\n", i);
-        //printf("Valores objeto: x1: %f, y1: %f, x2: %f, y2: %f\n", pontos[i][0], pontos[i][1], pontos[i+1][0], pontos[i+1][1]);
-        x1 = deslx + (pontos[i][0] * escalax);
-        y1 = desly + (pontos[i][1] * escalay);
-        x2 = deslx + (pontos[i+1][0] * escalax);
-        y2 = desly + (pontos[i+1][1] * escalay);
-        //printf("Valores unificado: x1: %f, y1: %f, x2: %f, y2: %f\n", x1, y1, x2, y2);
-        //("Desenhando i = %d\n", i);
-        //SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+void desenhaObjeto(SDL_Renderer *renderer, int numArestas, float escalax, float escalay, float deslx, float desly, float **pontos, int **arestas){
+    for (int i = 0; i < numArestas; i++) {
+        int idx1 = arestas[i][0];
+        int idx2 = arestas[i][1];
+        float x1 = deslx + (pontos[idx1][0] * escalax);
+        float y1 = desly + (pontos[idx1][1] * escalay);
+        float x2 = deslx + (pontos[idx2][0] * escalax);
+        float y2 = desly + (pontos[idx2][1] * escalay);
         desenhaAresta(renderer, x1, y1, x2, y2);
     }
-        x1 = deslx + pontos[i][0] * escalax;
-        y1 = desly + pontos[i][1] * escalay;
-        x2 = deslx + pontos[0][0] * escalax;
-        y2 = desly + pontos[0][1] * escalay;
-    desenhaAresta(renderer, x1, y1, x2, y2);
 }
+
+int carregarObjeto(const char *filename, float ***pontos, int *numVertices, int ***arestas, int *numArestas) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Erro ao abrir o arquivo");
+        return 0;
+    }
+
+    fscanf(file, "%d", numVertices);
+    *pontos = (float **) malloc(*numVertices * sizeof(float *));
+    for (int i = 0; i < *numVertices; i++) {
+        (*pontos)[i] = (float *) malloc(2 * sizeof(float));
+        fscanf(file, "%f %f", &(*pontos)[i][0], &(*pontos)[i][1]);
+    }
+
+    fscanf(file, "%d", numArestas);
+    *arestas = (int **) malloc(*numArestas * sizeof(int *));
+    for (int i = 0; i < *numArestas; i++) {
+        (*arestas)[i] = (int *) malloc(2 * sizeof(int));
+        fscanf(file, "%d %d", &(*arestas)[i][0], &(*arestas)[i][1]);
+    }
+
+    fclose(file);
+    return 1;
+}
+
 
 int main(int argc, char *argv[]){
     int i;
@@ -44,27 +60,15 @@ int main(int argc, char *argv[]){
     float escalay = 0.1;
     float deslx = -0.9;
     float desly = -0.4;
-    float **pontos = (float **) malloc(9*sizeof(float*));
-    for(i = 0; i<9; i++) pontos[i] = (float *) malloc(2*sizeof(float));
 
-    pontos[0][0] = 0;
-    pontos[0][1] = 0;
-    pontos[1][0] = 0;
-    pontos[1][1] = 4;
-    pontos[2][0] = 2;
-    pontos[2][1] = 6;
-    pontos[3][0] = 3;
-    pontos[3][1] = 5;
-    pontos[4][0] = 3;
-    pontos[4][1] = 5.5;
-    pontos[5][0] = 3.5;
-    pontos[5][1] = 5.5;
-    pontos[6][0] = 3.5;
-    pontos[6][1] = 4.5;
-    pontos[7][0] = 4;
-    pontos[7][1] = 4;
-    pontos[8][0] = 4;
-    pontos[8][1] = 0;
+    float **pontos = NULL;
+    int **arestas = NULL;
+    int numVertices = 0, numArestas = 0;
+
+    if (!carregarObjeto("cubo.txt", &pontos, &numVertices, &arestas, &numArestas)) {
+        return EXIT_FAILURE;
+    }
+
 
     if(SDL_Init(SDL_INIT_EVERYTHING)<0){
         printf("Deu erro!!! SDL error %s\n", SDL_GetError());
@@ -79,13 +83,13 @@ int main(int argc, char *argv[]){
 
     SDL_Event windowEvent;
     SDL_Renderer *renderer = SDL_CreateRenderer(window,-1,0);
-   while(1){
-       if( SDL_PollEvent(&windowEvent)){
+    while(1){
+        if( SDL_PollEvent(&windowEvent)){
             if(windowEvent.type == SDL_QUIT){
                 break;
             }
             if(windowEvent.type == SDL_KEYDOWN){
-                    // https://youtu.be/YfGYU7wWLo8?si=ULTr7xdT59_WyaQC
+                // https://youtu.be/YfGYU7wWLo8?si=ULTr7xdT59_WyaQC
                 if(windowEvent.key.keysym.sym == SDLK_a){
                     deslx -= 0.01;
                 }
@@ -152,7 +156,9 @@ int main(int argc, char *argv[]){
         //deslx = -0.9;
         //desly = -0.4;
         //AB
-        desenhaObjeto(renderer, 8, escalax, escalay, deslx, desly, pontos);
+        //desenhaObjeto(renderer, 8, escalax, escalay, deslx, desly, pontos);
+        desenhaObjeto(renderer, numArestas, escalax, escalay, deslx, desly, pontos, arestas);
+
         //SDL_RenderDrawLine(renderer, 10, 100, 10, 200);
 /*
         escalax = 0.05;
