@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <SDL2/SDL.h>
 
 #define WIDTH 800
@@ -53,6 +54,25 @@ int carregarObjeto(const char *filename, float ***pontos, int *numVertices, int 
     return 1;
 }
 
+void aplicarRotacaoComCentro(float **pontosOriginais, float **pontosTransformados, int numVertices, float angulo) {
+    // 1. Calcula o centroide (média dos pontos)
+    float cx = 0.0, cy = 0.0;
+    for (int i = 0; i < numVertices; i++) {
+        cx += pontosOriginais[i][0];
+        cy += pontosOriginais[i][1];
+    }
+    cx /= numVertices;
+    cy /= numVertices;
+
+    // 2. Aplica rotação em torno do centro
+    for (int i = 0; i < numVertices; i++) {
+        float x = pontosOriginais[i][0] - cx;
+        float y = pontosOriginais[i][1] - cy;
+
+        pontosTransformados[i][0] = cx + (x * cos(angulo) - y * sin(angulo));
+        pontosTransformados[i][1] = cy + (x * sin(angulo) + y * cos(angulo));
+    }
+}
 
 int main(int argc, char *argv[]){
     int i;
@@ -60,6 +80,8 @@ int main(int argc, char *argv[]){
     float escalay = 0.1;
     float deslx = -0.9;
     float desly = -0.4;
+
+    float angulo = 0.0;  // em radianos
 
     float **pontos = NULL;
     int **arestas = NULL;
@@ -69,6 +91,10 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
+    float **pontosTransformados = (float **) malloc(numVertices * sizeof(float *));
+    for (int i = 0; i < numVertices; i++) {
+        pontosTransformados[i] = (float *) malloc(2 * sizeof(float));
+    }
 
     if(SDL_Init(SDL_INIT_EVERYTHING)<0){
         printf("Deu erro!!! SDL error %s\n", SDL_GetError());
@@ -84,6 +110,8 @@ int main(int argc, char *argv[]){
     SDL_Event windowEvent;
     SDL_Renderer *renderer = SDL_CreateRenderer(window,-1,0);
     while(1){
+        aplicarRotacaoComCentro(pontos, pontosTransformados, numVertices, angulo);
+
         if( SDL_PollEvent(&windowEvent)){
             if(windowEvent.type == SDL_QUIT){
                 break;
@@ -143,6 +171,14 @@ int main(int argc, char *argv[]){
                 SDL_GetMouseState(&xmouse, &ymouse);
                 printf("Mouse :: %3d %3d\n", xmouse, ymouse);
             }
+
+            if ((windowEvent.key.keysym.mod & KMOD_SHIFT) && windowEvent.key.keysym.sym == SDLK_q) {
+                angulo -= 0.1;  // rotaciona levemente para esquerda
+            }
+            if ((windowEvent.key.keysym.mod & KMOD_SHIFT) && windowEvent.key.keysym.sym == SDLK_e) {
+                angulo += 0.1;  // rotaciona levemente para direita
+            }
+
         }
 
         SDL_SetRenderDrawColor(renderer, 242, 242, 242, 255);
@@ -157,7 +193,9 @@ int main(int argc, char *argv[]){
         //desly = -0.4;
         //AB
         //desenhaObjeto(renderer, 8, escalax, escalay, deslx, desly, pontos);
-        desenhaObjeto(renderer, numArestas, escalax, escalay, deslx, desly, pontos, arestas);
+        //desenhaObjeto(renderer, numArestas, escalax, escalay, deslx, desly, pontos, arestas);
+        desenhaObjeto(renderer, numArestas, escalax, escalay, deslx, desly, pontosTransformados, arestas);
+
 
         //SDL_RenderDrawLine(renderer, 10, 100, 10, 200);
 /*
