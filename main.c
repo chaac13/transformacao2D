@@ -74,8 +74,65 @@ void aplicarRotacaoComCentro(float **pontosOriginais, float **pontosTransformado
     }
 }
 
+int pontoDentroDoObjeto(float **pontos, int numVertices, float escalax, float escalay, float deslx, float desly, int mouseX, int mouseY) {
+    float x = ((float)mouseX / WIDTH) * 2 - 1;
+    float y = -(((float)mouseY / HEIGHT) * 2 - 1);
+
+    int dentro = 0;
+    for (int i = 0, j = numVertices - 1; i < numVertices; j = i++) {
+        float xi = deslx + pontos[i][0] * escalax;
+        float yi = desly + pontos[i][1] * escalay;
+        float xj = deslx + pontos[j][0] * escalax;
+        float yj = desly + pontos[j][1] * escalay;
+
+        if (((yi > y) != (yj > y)) &&
+            (x < (xj - xi) * (y - yi) / (yj - yi + 0.000001f) + xi)) {
+            dentro = !dentro;
+        }
+    }
+    return dentro;
+}
+
+
+int pontoProximoDaAresta(float **pontos, int **arestas, int numArestas, float escalax, float escalay, float deslx, float desly, int mouseX, int mouseY) {
+    float mx = ((float)mouseX / WIDTH) * 2 - 1;
+    float my = -(((float)mouseY / HEIGHT) * 2 - 1);
+
+    float margem = 0.02f;
+
+    for (int i = 0; i < numArestas; i++) {
+        int idx1 = arestas[i][0];
+        int idx2 = arestas[i][1];
+
+        float x1 = deslx + pontos[idx1][0] * escalax;
+        float y1 = desly + pontos[idx1][1] * escalay;
+        float x2 = deslx + pontos[idx2][0] * escalax;
+        float y2 = desly + pontos[idx2][1] * escalay;
+
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        float len2 = dx * dx + dy * dy;
+        if (len2 == 0.0f) continue;
+
+        float t = ((mx - x1) * dx + (my - y1) * dy) / len2;
+        t = fmax(0, fmin(1, t));
+
+        float projx = x1 + t * dx;
+        float projy = y1 + t * dy;
+
+        float dist2 = (mx - projx) * (mx - projx) + (my - projy) * (my - projy);
+        if (dist2 < margem * margem) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 int main(int argc, char *argv[]){
-    int i;
+    int arrastando = 0;
+    int mouseAnteriorX = 0, mouseAnteriorY = 0;
+
     float escalax = 0.1;
     float escalay = 0.1;
     float deslx = -0.9;
@@ -87,7 +144,7 @@ int main(int argc, char *argv[]){
     int **arestas = NULL;
     int numVertices = 0, numArestas = 0;
 
-    if (!carregarObjeto("cubo.txt", &pontos, &numVertices, &arestas, &numArestas)) {
+    if (!carregarObjeto("casa.txt", &pontos, &numVertices, &arestas, &numArestas)) {
         return EXIT_FAILURE;
     }
 
@@ -145,17 +202,23 @@ int main(int argc, char *argv[]){
                     printf("Tecla w liberada\n");
                 }
             }
-            if(windowEvent.type == SDL_MOUSEBUTTONDOWN){
-                if(windowEvent.button.button == SDL_BUTTON_LEFT){
-                    printf("esquerdo\n");
-                }
-                if(windowEvent.button.button == SDL_BUTTON_RIGHT){
-                    printf("direito\n");
-                }
-                if(windowEvent.button.button == SDL_BUTTON_MIDDLE){
-                    printf("meio\n");
+            if (windowEvent.type == SDL_MOUSEBUTTONDOWN && windowEvent.button.button == SDL_BUTTON_LEFT) {
+                int mx = windowEvent.button.x;
+                int my = windowEvent.button.y;
+
+                int dentro = pontoDentroDoObjeto(pontosTransformados, numVertices, escalax, escalay, deslx, desly, mx, my);
+                int proximo = pontoProximoDaAresta(pontosTransformados, arestas, numArestas, escalax, escalay, deslx, desly, mx, my);
+
+                if (dentro || proximo) {
+                    arrastando = 1;
+                    mouseAnteriorX = mx;
+                    mouseAnteriorY = my;
                 }
             }
+            if (windowEvent.type == SDL_MOUSEBUTTONUP && windowEvent.button.button == SDL_BUTTON_LEFT) {
+                arrastando = 0;
+            }
+
             if(windowEvent.type == SDL_MOUSEWHEEL){
                 if(windowEvent.wheel.y > 0){
                     escalax += 0.01;
@@ -170,6 +233,20 @@ int main(int argc, char *argv[]){
                 int xmouse, ymouse;
                 SDL_GetMouseState(&xmouse, &ymouse);
                 printf("Mouse :: %3d %3d\n", xmouse, ymouse);
+            }
+
+            if (windowEvent.type == SDL_MOUSEMOTION && arrastando) {
+                int mx = windowEvent.motion.x;
+                int my = windowEvent.motion.y;
+
+                float dx = (float)(mx - mouseAnteriorX) / (WIDTH / 2.0f);
+                float dy = -(float)(my - mouseAnteriorY) / (HEIGHT / 2.0f); // y invertido
+
+                deslx += dx;
+                desly += dy;
+
+                mouseAnteriorX = mx;
+                mouseAnteriorY = my;
             }
 
             if ((windowEvent.key.keysym.mod & KMOD_SHIFT) && windowEvent.key.keysym.sym == SDLK_q) {
