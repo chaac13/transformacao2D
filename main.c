@@ -5,142 +5,176 @@
 
 #define WIDTH 800
 #define HEIGHT 600
+#define MAX_OBJETOS 2
+
+int objetoSelecionado = -1;
+
+
+typedef struct {
+    float **pontosOriginais;
+    float **pontosTransformados;
+    int numVertices;
+
+    int **arestas;
+    int numArestas;
+
+    float escalax, escalay;
+    float deslx, desly;
+    float angulo;
+
+    int arrastando;
+    int mouseAnteriorX, mouseAnteriorY;
+} Objeto;
 
 void desenhaAresta(SDL_Renderer *renderer, float x1, float y1, float x2, float y2);
-void desenhaObjeto(SDL_Renderer *renderer, int numArestas, float escalax, float escalay, float deslx, float desly, float **pontos, int **arestas);
+
+void desenhaObjeto(SDL_Renderer *renderer, int numArestas, float escalax, float escalay, float deslx, float desly,
+                   float **pontos, int **arestas);
+
 int carregarObjeto(const char *filename, float ***pontos, int *numVertices, int ***arestas, int *numArestas);
+
 void aplicarRotacaoComCentro(float **pontosOriginais, float **pontosTransformados, int numVertices, float angulo);
-int pontoDentroDoObjeto(float **pontos, int numVertices, float escalax, float escalay, float deslx, float desly, int mouseX, int mouseY);
-int pontoProximoDaAresta(float **pontos, int **arestas, int numArestas, float escalax, float escalay, float deslx, float desly, int mouseX, int mouseY);
 
-int main(int argc, char *argv[]){
-    int arrastando = 0;
-    int mouseAnteriorX = 0, mouseAnteriorY = 0;
+int pontoDentroDoObjeto(float **pontos, int numVertices, float escalax, float escalay, float deslx, float desly,
+                        int mouseX, int mouseY);
 
-    float escalax = 0.1;
-    float escalay = 0.1;
-    float deslx = -0.9;
-    float desly = -0.4;
+int pontoProximoDaAresta(float **pontos, int **arestas, int numArestas, float escalax, float escalay, float deslx,
+                         float desly, int mouseX, int mouseY);
 
-    float angulo = 0.0;  // em radianos
+void liberaObjetos(objetos, numObjetos);
 
-    float **pontos = NULL;
-    int **arestas = NULL;
-    int numVertices = 0, numArestas = 0;
 
-    if (!carregarObjeto("cubo.txt", &pontos, &numVertices, &arestas, &numArestas)) {
-        return EXIT_FAILURE;
+int main(int argc, char *argv[]) {
+    Objeto objetos[MAX_OBJETOS];
+    int numObjetos = 2;
+    const char *arquivos[] = {"cubo.txt", "cubo.txt"};
+
+    for (int i = 0; i < numObjetos; i++) {
+        Objeto *obj = &objetos[i];
+
+        if (!carregarObjeto(arquivos[i], &obj->pontosOriginais, &obj->numVertices,
+                            &obj->arestas, &obj->numArestas)) {
+            return EXIT_FAILURE;
+        }
+
+        obj->pontosTransformados = malloc(obj->numVertices * sizeof(float *));
+        for (int j = 0; j < obj->numVertices; j++) {
+            obj->pontosTransformados[j] = malloc(2 * sizeof(float));
+        }
+
+        obj->escalax = 0.1f;
+        obj->escalay = 0.1f;
+        obj->deslx = -0.9f + i * 0.5f;
+        obj->desly = -0.4f;
+        obj->angulo = 0.0f;
+        obj->arrastando = 0;
     }
 
-    float **pontosTransformados;
-    pontosTransformados = (float **) malloc(numVertices * sizeof(float *));
-    for (int i = 0; i < numVertices; i++) {
-        pontosTransformados[i] = (float *) malloc(2 * sizeof(float));
-    }
-
-    if(SDL_Init(SDL_INIT_EVERYTHING)<0){
+    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         printf("Deu erro!!! SDL error %s\n", SDL_GetError());
         return EXIT_FAILURE;
     }
 
-    SDL_Window *window = SDL_CreateWindow("SDL Hello World!!!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_ALLOW_HIGHDPI);
-    if(window == NULL){
+    SDL_Window *window = SDL_CreateWindow("SDL Hello World!!!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH,
+                                          HEIGHT, SDL_WINDOW_ALLOW_HIGHDPI);
+    if (window == NULL) {
         printf("Deu erro na janela!!! SDL error %s\n", SDL_GetError());
         return EXIT_FAILURE;
     }
 
     SDL_Event windowEvent;
-    SDL_Renderer *renderer = SDL_CreateRenderer(window,-1,0);
-    while(1){
-        aplicarRotacaoComCentro(pontos, pontosTransformados, numVertices, angulo);
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+    while (1) {
+        for (int i = 0; i < numObjetos; i++) {
+            aplicarRotacaoComCentro(objetos[i].pontosOriginais, objetos[i].pontosTransformados,
+                                    objetos[i].numVertices, objetos[i].angulo);
+        }
 
-        if( SDL_PollEvent(&windowEvent)){
-            if(windowEvent.type == SDL_QUIT){
+
+        if (SDL_PollEvent(&windowEvent)) {
+            if (windowEvent.type == SDL_QUIT) {
                 break;
             }
-            if(windowEvent.type == SDL_KEYDOWN){
+            if (windowEvent.type == SDL_KEYDOWN) {
                 // https://youtu.be/YfGYU7wWLo8?si=ULTr7xdT59_WyaQC
-                if(windowEvent.key.keysym.sym == SDLK_a){
-                    deslx -= 0.01;
-                }
-                if(windowEvent.key.keysym.sym == SDLK_s){
-                    desly -= 0.01;
-                }
-                if(windowEvent.key.keysym.sym == SDLK_d){
-                    deslx += 0.01;
-                }
-                if(windowEvent.key.keysym.sym == SDLK_w){
-                    desly += 0.01;
-                }
-            }
-            if(windowEvent.type == SDL_KEYUP){
-                if(windowEvent.key.keysym.sym == SDLK_a){
-                    printf("Tecla a liberada\n");
-                }
-                if(windowEvent.key.keysym.sym == SDLK_s){
-                    printf("Tecla s liberada\n");
-                }
-                if(windowEvent.key.keysym.sym == SDLK_d){
-                    printf("Tecla d liberada\n");
-                }
-                if(windowEvent.key.keysym.sym == SDLK_w){
-                    printf("Tecla w liberada\n");
+                if (objetoSelecionado != -1) {
+                    if (windowEvent.key.keysym.sym == SDLK_a) {
+                        objetos[objetoSelecionado].deslx -= 0.01;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_d) {
+                        objetos[objetoSelecionado].deslx += 0.01;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_w) {
+                        objetos[objetoSelecionado].desly += 0.01;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_s) {
+                        objetos[objetoSelecionado].desly -= 0.01;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_q) {
+                        objetos[objetoSelecionado].angulo -= 0.1;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_e) {
+                        objetos[objetoSelecionado].angulo += 0.1;
+                    }
                 }
             }
+
             if (windowEvent.type == SDL_MOUSEBUTTONDOWN && windowEvent.button.button == SDL_BUTTON_LEFT) {
                 int mx = windowEvent.button.x;
                 int my = windowEvent.button.y;
+                objetoSelecionado = -1;
 
-                int dentro = pontoDentroDoObjeto(pontosTransformados, numVertices, escalax, escalay, deslx, desly, mx, my);
-                int proximo = pontoProximoDaAresta(pontosTransformados, arestas, numArestas, escalax, escalay, deslx, desly, mx, my);
-
-                if (dentro || proximo) {
-                    arrastando = 1;
-                    mouseAnteriorX = mx;
-                    mouseAnteriorY = my;
+                for (int i = 0; i < numObjetos; i++) {
+                    if (pontoDentroDoObjeto(objetos[i].pontosTransformados, objetos[i].numVertices,
+                                            objetos[i].escalax, objetos[i].escalay,
+                                            objetos[i].deslx, objetos[i].desly, mx, my)) {
+                        objetoSelecionado = i;
+                        objetos[i].arrastando = 1;
+                        objetos[i].mouseAnteriorX = mx;
+                        objetos[i].mouseAnteriorY = my;
+                        break;
+                    }
                 }
             }
+
             if (windowEvent.type == SDL_MOUSEBUTTONUP && windowEvent.button.button == SDL_BUTTON_LEFT) {
-                arrastando = 0;
+                if (objetoSelecionado != -1) {
+                    objetos[objetoSelecionado].arrastando = 0;
+                }
             }
 
-            if(windowEvent.type == SDL_MOUSEWHEEL){
-                if(windowEvent.wheel.y > 0){
-                    escalax += 0.01;
-                    escalay += 0.01;
+
+            if (objetoSelecionado != -1 && windowEvent.type == SDL_MOUSEWHEEL) {
+                if (windowEvent.wheel.y > 0) {
+                    objetos[objetoSelecionado].escalax += 0.01;
+                    objetos[objetoSelecionado].escalay += 0.01;
                 }
-                if(windowEvent.wheel.y < 0){
-                    escalax -= 0.01;
-                    escalay -= 0.01;
+                if (windowEvent.wheel.y < 0) {
+                    objetos[objetoSelecionado].escalax -= 0.01;
+                    objetos[objetoSelecionado].escalay -= 0.01;
                 }
             }
-            if(windowEvent.type == SDL_MOUSEMOTION){
+
+            if (windowEvent.type == SDL_MOUSEMOTION) {
                 int xmouse, ymouse;
                 SDL_GetMouseState(&xmouse, &ymouse);
                 printf("Mouse :: %3d %3d\n", xmouse, ymouse);
             }
 
-            if (windowEvent.type == SDL_MOUSEMOTION && arrastando) {
+            if (windowEvent.type == SDL_MOUSEMOTION && objetoSelecionado != -1 && objetos[objetoSelecionado].
+                arrastando) {
                 int mx = windowEvent.motion.x;
                 int my = windowEvent.motion.y;
 
-                float dx = (float)(mx - mouseAnteriorX) / (WIDTH / 2.0f);
-                float dy = -(float)(my - mouseAnteriorY) / (HEIGHT / 2.0f); // y invertido
+                float dx = (float) (mx - objetos[objetoSelecionado].mouseAnteriorX) / (WIDTH / 2.0f);
+                float dy = -(float) (my - objetos[objetoSelecionado].mouseAnteriorY) / (HEIGHT / 2.0f);
 
-                deslx += dx;
-                desly += dy;
+                objetos[objetoSelecionado].deslx += dx;
+                objetos[objetoSelecionado].desly += dy;
 
-                mouseAnteriorX = mx;
-                mouseAnteriorY = my;
+                objetos[objetoSelecionado].mouseAnteriorX = mx;
+                objetos[objetoSelecionado].mouseAnteriorY = my;
             }
-
-            if ((windowEvent.key.keysym.mod & KMOD_SHIFT) && windowEvent.key.keysym.sym == SDLK_q) {
-                angulo -= 0.1;  // rotaciona levemente para esquerda
-            }
-            if ((windowEvent.key.keysym.mod & KMOD_SHIFT) && windowEvent.key.keysym.sym == SDLK_e) {
-                angulo += 0.1;  // rotaciona levemente para direita
-            }
-
         }
 
         SDL_SetRenderDrawColor(renderer, 242, 242, 242, 255);
@@ -148,41 +182,37 @@ int main(int argc, char *argv[]){
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
-        desenhaObjeto(renderer, numArestas, escalax, escalay, deslx, desly, pontosTransformados, arestas);
+        for (int i = 0; i < numObjetos; i++) {
+            desenhaObjeto(renderer, objetos[i].numArestas, objetos[i].escalax, objetos[i].escalay,
+                          objetos[i].deslx, objetos[i].desly,
+                          objetos[i].pontosTransformados, objetos[i].arestas);
+        }
+
 
         SDL_RenderPresent(renderer);
     }
 
-    for (int i = 0; i < numVertices; i++) {
-        free(pontosTransformados[i]);
-        free(pontos[i]);
-    }
-    free(pontosTransformados);
-    free(pontos);
 
-    for (int i = 0; i < numArestas; i++) {
-        free(arestas[i]);
-    }
-    free(arestas);
-
-
+    liberaObjetos(objetos, numObjetos);
     SDL_DestroyWindow(window);
     SDL_Quit();
 
     return EXIT_SUCCESS;
 }
-void desenhaAresta(SDL_Renderer *renderer, float x1, float y1, float x2, float y2){
+
+void desenhaAresta(SDL_Renderer *renderer, float x1, float y1, float x2, float y2) {
     int xa, xb, ya, yb;
     //printf("Valores unificado: x1: %f, y1: %f, x2: %f, y2: %f\n", x1, y1, x2, y2);
-    xa = WIDTH * ((x1 + 1)/2);
-    xb = WIDTH * ((x2 + 1)/2);
-    ya = HEIGHT * ((-y1 + 1)/2);
-    yb = HEIGHT * ((-y2 + 1)/2);
+    xa = WIDTH * ((x1 + 1) / 2);
+    xb = WIDTH * ((x2 + 1) / 2);
+    ya = HEIGHT * ((-y1 + 1) / 2);
+    yb = HEIGHT * ((-y2 + 1) / 2);
     //printf("Valores dispositivo: xa: %d, ya: %d, xb: %d, yb: %d\n", xa, ya, xb, yb);
     SDL_RenderDrawLine(renderer, xa, ya, xb, yb);
 }
 
-void desenhaObjeto(SDL_Renderer *renderer, int numArestas, float escalax, float escalay, float deslx, float desly, float **pontos, int **arestas){
+void desenhaObjeto(SDL_Renderer *renderer, int numArestas, float escalax, float escalay, float deslx, float desly,
+                   float **pontos, int **arestas) {
     for (int i = 0; i < numArestas; i++) {
         int idx1 = arestas[i][0];
         int idx2 = arestas[i][1];
@@ -239,9 +269,10 @@ void aplicarRotacaoComCentro(float **pontosOriginais, float **pontosTransformado
     }
 }
 
-int pontoDentroDoObjeto(float **pontos, int numVertices, float escalax, float escalay, float deslx, float desly, int mouseX, int mouseY) {
-    float x = ((float)mouseX / WIDTH) * 2 - 1;
-    float y = -(((float)mouseY / HEIGHT) * 2 - 1);
+int pontoDentroDoObjeto(float **pontos, int numVertices, float escalax, float escalay, float deslx, float desly,
+                        int mouseX, int mouseY) {
+    float x = ((float) mouseX / WIDTH) * 2 - 1;
+    float y = -(((float) mouseY / HEIGHT) * 2 - 1);
 
     int dentro = 0;
     for (int i = 0, j = numVertices - 1; i < numVertices; j = i++) {
@@ -258,9 +289,10 @@ int pontoDentroDoObjeto(float **pontos, int numVertices, float escalax, float es
     return dentro;
 }
 
-int pontoProximoDaAresta(float **pontos, int **arestas, int numArestas, float escalax, float escalay, float deslx, float desly, int mouseX, int mouseY) {
-    float mx = ((float)mouseX / WIDTH) * 2 - 1;
-    float my = -(((float)mouseY / HEIGHT) * 2 - 1);
+int pontoProximoDaAresta(float **pontos, int **arestas, int numArestas, float escalax, float escalay, float deslx,
+                         float desly, int mouseX, int mouseY) {
+    float mx = ((float) mouseX / WIDTH) * 2 - 1;
+    float my = -(((float) mouseY / HEIGHT) * 2 - 1);
 
     float margem = 0.02f;
 
@@ -290,4 +322,13 @@ int pontoProximoDaAresta(float **pontos, int **arestas, int numArestas, float es
         }
     }
     return 0;
+}
+
+void liberaObjetos(Objeto *objetos, int numObjetos) {
+    for (int i = 0; i < numObjetos; i++) {
+        free(objetos[i].pontosOriginais);
+        free(objetos[i].pontosTransformados);
+        free(objetos[i].arestas);
+    }
+    free(objetos);
 }
