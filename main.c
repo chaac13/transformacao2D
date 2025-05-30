@@ -5,10 +5,9 @@
 
 #define WIDTH 800
 #define HEIGHT 600
-#define MAX_OBJETOS 2
+#define MAX_OBJETOS 5
 
 int objetoSelecionado = -1;
-
 
 typedef struct {
     float **pontosOriginais;
@@ -47,7 +46,7 @@ void liberaObjetos(objetos, numObjetos);
 int main(int argc, char *argv[]) {
     Objeto objetos[MAX_OBJETOS];
     int numObjetos = 2;
-    const char *arquivos[] = {"cubo.txt", "cubo.txt"};
+    const char *arquivos[] = {"cubo.txt", "casa.txt"};
 
     for (int i = 0; i < numObjetos; i++) {
         Objeto *obj = &objetos[i];
@@ -84,6 +83,11 @@ int main(int argc, char *argv[]) {
 
     SDL_Event windowEvent;
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+
+    printf("Menu\n");
+    printf("Utilize wasd para mover o objeto selecionado\n");
+    printf("Utilize qe para rotacionar o objeto selecionado\n");
+
     while (1) {
         for (int i = 0; i < numObjetos; i++) {
             aplicarRotacaoComCentro(objetos[i].pontosOriginais, objetos[i].pontosTransformados,
@@ -98,16 +102,16 @@ int main(int argc, char *argv[]) {
             if (windowEvent.type == SDL_KEYDOWN) {
                 // https://youtu.be/YfGYU7wWLo8?si=ULTr7xdT59_WyaQC
                 if (objetoSelecionado != -1) {
-                    if (windowEvent.key.keysym.sym == SDLK_a) {
+                    if (windowEvent.key.keysym.sym == SDLK_a || windowEvent.key.keysym.sym == SDLK_LEFT) {
                         objetos[objetoSelecionado].deslx -= 0.01;
                     }
-                    if (windowEvent.key.keysym.sym == SDLK_d) {
+                    if (windowEvent.key.keysym.sym == SDLK_d || windowEvent.key.keysym.sym == SDLK_RIGHT) {
                         objetos[objetoSelecionado].deslx += 0.01;
                     }
-                    if (windowEvent.key.keysym.sym == SDLK_w) {
+                    if (windowEvent.key.keysym.sym == SDLK_w || windowEvent.key.keysym.sym == SDLK_UP) {
                         objetos[objetoSelecionado].desly += 0.01;
                     }
-                    if (windowEvent.key.keysym.sym == SDLK_s) {
+                    if (windowEvent.key.keysym.sym == SDLK_s || windowEvent.key.keysym.sym == SDLK_DOWN) {
                         objetos[objetoSelecionado].desly -= 0.01;
                     }
                     if (windowEvent.key.keysym.sym == SDLK_q) {
@@ -115,6 +119,14 @@ int main(int argc, char *argv[]) {
                     }
                     if (windowEvent.key.keysym.sym == SDLK_e) {
                         objetos[objetoSelecionado].angulo += 0.1;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_EQUALS || windowEvent.key.keysym.sym == SDLK_KP_PLUS) {
+                        objetos[objetoSelecionado].escalax += 0.01;
+                        objetos[objetoSelecionado].escalay += 0.01;
+                    }
+                    if (windowEvent.key.keysym.sym == SDLK_MINUS || windowEvent.key.keysym.sym == SDLK_KP_MINUS) {
+                        objetos[objetoSelecionado].escalax -= 0.01;
+                        objetos[objetoSelecionado].escalay -= 0.01;
                     }
                 }
             }
@@ -129,6 +141,7 @@ int main(int argc, char *argv[]) {
                                             objetos[i].escalax, objetos[i].escalay,
                                             objetos[i].deslx, objetos[i].desly, mx, my)) {
                         objetoSelecionado = i;
+                        printf("Objeto Selecionado: %d\n", i+1);
                         objetos[i].arrastando = 1;
                         objetos[i].mouseAnteriorX = mx;
                         objetos[i].mouseAnteriorY = my;
@@ -158,11 +171,11 @@ int main(int argc, char *argv[]) {
             if (windowEvent.type == SDL_MOUSEMOTION) {
                 int xmouse, ymouse;
                 SDL_GetMouseState(&xmouse, &ymouse);
-                printf("Mouse :: %3d %3d\n", xmouse, ymouse);
+                //printf("Mouse :: %3d %3d\n", xmouse, ymouse);
             }
 
             if (windowEvent.type == SDL_MOUSEMOTION && objetoSelecionado != -1 && objetos[objetoSelecionado].
-                arrastando) {
+                    arrastando) {
                 int mx = windowEvent.motion.x;
                 int my = windowEvent.motion.y;
 
